@@ -1,53 +1,94 @@
 #!/usr/bin/env python3
 
+import re
 import subprocess
-
-list_of_ips = str(input("Enter a list of IPs as comma separated values: "))
-print(list_of_ips)
-all_ips = list_of_ips.split(",")
-print(all_ips)
-
-
-for ip in list_of_ips:
-    octets = ip.split(".")
-    all_ips.append(octets)
-
-split_ips = []
-#for ip in list_of_ips:
 
 PORT = "3389"
 TIMEOUT = "2"
 
-for ip in all_ips:
-    print(f"Checking {ip}...")
 
-    test = subprocess.run(
-        ["nc", "-vz", "-w", TIMEOUT, ip, PORT],
-        capture_output=True,
-        encoding="utf-8",
-        text=True,
-    )
+def get_ips():
+    """Prompt the user to choose how they want to enter IP addresses."""
 
-    if test.returncode != 0:
-        print(f"{ip}: {test.stderr.strip()}")
-        continue
+    while True:
+        print("\nHow would you like to enter IP addresses?")
+        print("1. Comma-separated list")
+        print("2. Paste a list (one per line or mixed text)")
+        choice = input("\nEnter your choice (1 or 2): ").strip()
 
-    print(f"  {ip}: OPEN")
-    print(f"Launching RDP to {ip}...")
+        if choice == "1":
+            ip_input = input("\nEnter IPs separated by commas: ").strip()
+            ips = [ip.strip() for ip in ip_input.split(",") if ip.strip()]
+            return ips
 
-    # opens rdp session
-    proc = subprocess.Popen([
-        "cmd.exe",
-        "/c",
-        "start",
-        "/wait",
-        "mstsc",
-        f"/v:{ip}",
-    ])
+        elif choice == "2":
+            print("\nPaste your IP list below.")
+            print("Press Enter on a blank line when finished.\n")
 
-    # wait for rdp session close
-    proc.wait()
+            lines = []
+            while True:
+                line = input()
+                if line == "":
+                    break
+                lines.append(line)
 
-    print(f"Closed session for {ip}\n")
+            text = "\n".join(lines)
 
-print("Finished.")
+            # Extract IPv4 addresses from any pasted text
+            ips = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)
+
+            if not ips:
+                print("\nNo IP addresses were found. Please try again.")
+                continue
+
+            return ips
+
+        else:
+            print("\nInvalid selection. Please enter 1 or 2.\n")
+
+
+def main():
+    all_ips = get_ips()
+
+    print("\nThe following IPs will be checked:")
+    for ip in all_ips:
+        print(f"  - {ip}")
+
+    print()
+
+    for ip in all_ips:
+        print(f"Checking {ip}...")
+
+        test = subprocess.run(
+            ["nc", "-vz", "-w", TIMEOUT, ip, PORT],
+            capture_output=True,
+            text=True,
+        )
+
+        if test.returncode != 0:
+            print(f"  {ip}: {test.stderr.strip()}")
+            continue
+
+        print(f"  {ip}: OPEN")
+        print(f"Launching RDP to {ip}...")
+
+        # Launch Remote Desktop
+        proc = subprocess.Popen([
+            "cmd.exe",
+            "/c",
+            "start",
+            "/wait",
+            "mstsc",
+            f"/v:{ip}",
+        ])
+
+        # Wait until the RDP session is closed
+        proc.wait()
+
+        print(f"Closed session for {ip}\n")
+
+    print("Finished.")
+
+
+if __name__ == "__main__":
+    main()
